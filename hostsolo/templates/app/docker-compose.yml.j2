@@ -1,0 +1,57 @@
+version: "3.8"
+
+services:
+  {{ app_name }}:
+    image: {{ app_config.image }}:{{ app_config.tag }}
+    container_name: hostsolo-{{ env_name }}-{{ app_name }}
+    restart: unless-stopped
+    {% if volumes %}
+    volumes:
+      {% for volume in volumes %}
+      - {{ volume }}
+      {% endfor %}
+    {% endif %}
+    env_file:
+      - {{ project_root }}/config/{{ app_name }}/shared.env
+      - {{ project_root }}/config/{{ app_name }}/{{ env_name }}.env
+    {% if app_config.environment %}
+    environment:
+      {% for key, value in app_config.environment.items() %}
+      {{ key }}: "{{ value }}"
+      {% endfor %}
+    {% endif %}
+    networks:
+      - hostsolo-proxy
+      - hostsolo-{{ env_name }}
+    labels:
+      - "traefik.enable=true"
+
+      {% if local %}
+      # Local development (HTTP only)
+      - "traefik.http.routers.{{ app_name }}-{{ env_name }}.rule=Host(`{{ domain }}`)"
+      - "traefik.http.routers.{{ app_name }}-{{ env_name }}.entrypoints=web"
+      {% else %}
+      # Production (HTTPS with Let's Encrypt)
+      - "traefik.http.routers.{{ app_name }}-{{ env_name }}.rule=Host(`{{ domain }}`)"
+      - "traefik.http.routers.{{ app_name }}-{{ env_name }}.entrypoints=websecure"
+      - "traefik.http.routers.{{ app_name }}-{{ env_name }}.tls=true"
+      - "traefik.http.routers.{{ app_name }}-{{ env_name }}.tls.certresolver=letsencrypt"
+      {% endif %}
+
+      {% if app_config.ports %}
+      # Service port (first port in list)
+      - "traefik.http.services.{{ app_name }}-{{ env_name }}.loadbalancer.server.port={{ app_config.ports[0] }}"
+      {% endif %}
+
+      {% if app_config.healthcheck_path %}
+      # Health check
+      - "traefik.http.services.{{ app_name }}-{{ env_name }}.loadbalancer.healthcheck.path={{ app_config.healthcheck_path }}"
+      - "traefik.http.services.{{ app_name }}-{{ env_name }}.loadbalancer.healthcheck.interval=30s"
+      {% endif %}
+
+networks:
+  hostsolo-proxy:
+    external: true
+    name: hostsolo-proxy
+  hostsolo-{{ env_name }}:
+    name: hostsolo-{{ env_name }}

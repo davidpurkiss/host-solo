@@ -1,0 +1,74 @@
+# Host Solo Configuration Example
+# Copy this file to hostsolo.yaml and customize for your setup
+
+# Your domain name (required)
+domain: example.com
+
+# Email for Let's Encrypt SSL certificates (required)
+email: admin@example.com
+
+# Directory for persistent data (relative to project root)
+data_dir: ./data
+
+# DNS Provider Configuration
+# Credentials should be set via environment variables
+dns:
+  provider: dnsimple
+  # Set HOSTSOLO_DNSIMPLE_TOKEN and HOSTSOLO_DNSIMPLE_ACCOUNT_ID
+
+# Backup Configuration
+backup:
+  provider: s3
+  bucket: my-hostsolo-backups
+  # For S3-compatible providers (Backblaze B2, MinIO, etc):
+  # endpoint_url: https://s3.us-west-000.backblazeb2.com
+  schedule: "0 */6 * * *"  # Every 6 hours
+
+# Environment Definitions
+# Each environment gets its own Docker network and subdomain
+environments:
+  dev:
+    subdomain: dev     # dev.example.com
+  staging:
+    subdomain: staging # staging.example.com
+  prod:
+    subdomain: ""      # example.com (root domain)
+
+# Application Definitions
+apps:
+  # Directus CMS with SQLite
+  directus:
+    image: directus/directus
+    tag: "10.10.5"
+    ports:
+      - "8055"
+    volumes:
+      - ./data/${ENV}/directus/database:/directus/database
+      - ./data/${ENV}/directus/uploads:/directus/uploads
+    environment:
+      KEY: "${HOSTSOLO_DIRECTUS_KEY}"
+      SECRET: "${HOSTSOLO_DIRECTUS_SECRET}"
+      DB_CLIENT: sqlite3
+      DB_FILENAME: /directus/database/data.db
+      ADMIN_EMAIL: admin@example.com
+      ADMIN_PASSWORD: "${HOSTSOLO_DIRECTUS_ADMIN_PASSWORD}"
+      PUBLIC_URL: "https://${DOMAIN}"
+    backup_paths:
+      - ./data/${ENV}/directus/database
+    healthcheck_path: /server/health
+
+  # Example: Add more apps here
+  #
+  # ghost:
+  #   image: ghost
+  #   tag: "5"
+  #   ports:
+  #     - "2368"
+  #   volumes:
+  #     - ./data/${ENV}/ghost/content:/var/lib/ghost/content
+  #   environment:
+  #     url: "https://${DOMAIN}"
+  #     database__client: sqlite3
+  #     database__connection__filename: /var/lib/ghost/content/data/ghost.db
+  #   backup_paths:
+  #     - ./data/${ENV}/ghost/content

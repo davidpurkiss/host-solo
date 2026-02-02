@@ -1,0 +1,13 @@
+# Host Solo
+.env
+data/
+*.log
+acme.json
+
+# Generated compose files
+apps/
+traefik/
+
+# App config (secrets) - keep env.example, exclude actual env files
+config/*/*.env
+!config/*/env.example
