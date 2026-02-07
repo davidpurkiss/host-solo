@@ -65,12 +65,8 @@ def init(
                     "./data/${ENV}/directus/uploads:/directus/uploads",
                 ],
                 "environment": {
-                    "KEY": "${HOSTSOLO_DIRECTUS_KEY}",
-                    "SECRET": "${HOSTSOLO_DIRECTUS_SECRET}",
                     "DB_CLIENT": "sqlite3",
                     "DB_FILENAME": "/directus/database/data.db",
-                    "ADMIN_EMAIL": "admin@example.com",
-                    "ADMIN_PASSWORD": "change-me-immediately",
                 },
                 "backup_paths": ["./data/${ENV}/directus/database"],
             }

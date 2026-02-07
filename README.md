@@ -73,7 +73,7 @@ hostsolo proxy up
 ### 5. Deploy an application
 
 ```bash
-hostsolo deploy directus --env prod
+hostsolo deploy up directus --env prod
 ```
 
 ## CLI Commands
@@ -90,11 +90,11 @@ hostsolo proxy restart  # Restart Traefik
 ### Application Deployment
 
 ```bash
-hostsolo deploy <app> --env <env>           # Deploy an app
-hostsolo deploy <app> --env <env> --tag 1.0 # Deploy specific version
-hostsolo deploy stop <app> --env <env>      # Stop an app
-hostsolo deploy logs <app> --env <env>      # View app logs
-hostsolo deploy restart <app> --env <env>   # Restart an app
+hostsolo deploy up <app> --env <env>           # Deploy an app
+hostsolo deploy up <app> --env <env> --tag 1.0 # Deploy specific version
+hostsolo deploy stop <app> --env <env>         # Stop an app
+hostsolo deploy logs <app> --env <env>         # View app logs
+hostsolo deploy restart <app> --env <env>      # Restart an app
 ```
 
 ### DNS Management
@@ -231,7 +231,7 @@ Use the `--local` flag to run locally without SSL:
 
 ```bash
 hostsolo proxy up --local
-hostsolo deploy directus --env dev --local
+hostsolo deploy up directus --env dev --local
 ```
 
 Access via http://dev.localhost (add to /etc/hosts if needed).
