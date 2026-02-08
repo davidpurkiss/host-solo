@@ -172,7 +172,7 @@ def restore(
 
     console.print(f"[green]✓[/green] Restore complete")
     console.print()
-    console.print("[yellow]Note:[/yellow] You may need to restart the app: hostsolo deploy restart")
+    console.print(f"[yellow]Note:[/yellow] You may need to restart the app: hostsolo deploy restart {app_name} --env {env_name}")
 
 
 @app.command()

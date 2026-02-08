@@ -18,10 +18,49 @@ pip install hostsolo
 Or install from source:
 
 ```bash
-git clone https://github.com/yourusername/host-solo.git
+git clone https://github.com/davidpurkiss/host-solo.git
 cd host-solo
 pip install -e .
 ```
+
+## VPS Setup (One Command)
+
+For a fresh Ubuntu VPS, use the setup script to configure everything automatically:
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/davidpurkiss/host-solo/main/scripts/setup-vps.sh | bash -s -- \
+  --user myuser \
+  --ssh-key "ssh-ed25519 AAAA... you@host"
+```
+
+Or download and review first (recommended):
+
+```bash
+wget -O setup-vps.sh https://raw.githubusercontent.com/davidpurkiss/host-solo/main/scripts/setup-vps.sh
+chmod +x setup-vps.sh
+./setup-vps.sh --user myuser --ssh-key "$(cat ~/.ssh/id_ed25519.pub)"
+```
+
+The script configures:
+
+- **System** - Updates packages, enables automatic security updates
+- **User** - Creates non-root user with sudo + SSH key access
+- **SSH** - Disables root login, password auth, limits retries
+- **Firewall** - UFW with only SSH, 80, 443 open
+- **Docker** - Installs with rootless mode (or `--docker-mode group`)
+- **Python** - Python 3 + pip + venv
+- **Host Solo** - Installed in a dedicated venv
+- **Hardening** - fail2ban, kernel sysctl hardening, root password lock
+
+Options:
+
+| Flag | Description |
+|------|-------------|
+| `--user <name>` | Username for non-root account (required) |
+| `--ssh-key "<key>"` | SSH public key string (required) |
+| `--docker-mode <mode>` | `rootless` (default) or `group` |
+| `--extra-ports <ports>` | Additional ports to open, e.g. `8080,3000` |
+| `--skip-hostsolo` | Skip Host Solo installation |
 
 ## Quick Start
 

@@ -166,7 +166,7 @@ config/*/*.env
     console.print("     cp config/<app>/env.example config/<app>/prod.env")
     console.print("  3. Edit hostsolo.yaml to customize your apps")
     console.print("  4. Run [bold]hostsolo proxy up[/bold] to start Traefik")
-    console.print("  5. Run [bold]hostsolo deploy <app> --env <env>[/bold] to deploy")
+    console.print("  5. Run [bold]hostsolo deploy up <app> --env <env>[/bold] to deploy")
 
 
 @app.command()
