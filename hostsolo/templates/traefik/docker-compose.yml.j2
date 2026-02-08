@@ -1,12 +1,27 @@
 services:
+  # Docker Socket Proxy - handles API version negotiation
+  dockerproxy:
+    image: tecnativa/docker-socket-proxy:latest
+    container_name: hostsolo-dockerproxy
+    restart: unless-stopped
+    environment:
+      - CONTAINERS=1
+      - NETWORKS=1
+      - SERVICES=1
+      - TASKS=1
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+    networks:
+      - hostsolo-proxy
+
   traefik:
     image: traefik:v3.3
     container_name: hostsolo-traefik
     restart: unless-stopped
+    depends_on:
+      - dockerproxy
     security_opt:
       - no-new-privileges:true
-    extra_hosts:
-      - "host.docker.internal:host-gateway"
     ports:
       - "80:80"
       - "443:443"
@@ -15,7 +30,6 @@ services:
       {% endif %}
     environment:
       - TZ=UTC
-      - DOCKER_API_VERSION=1.44
     command:
       # API and Dashboard
       {% if local %}
@@ -25,11 +39,11 @@ services:
       - "--api.dashboard=false"
       {% endif %}
 
-      # Docker provider
+      # Docker provider (via socket proxy)
       - "--providers.docker=true"
       - "--providers.docker.exposedbydefault=false"
       - "--providers.docker.network=hostsolo-proxy"
-      - "--providers.docker.endpoint=tcp://host.docker.internal:2375"
+      - "--providers.docker.endpoint=tcp://dockerproxy:2375"
 
       # Entrypoints
       - "--entrypoints.web.address=:80"
@@ -51,7 +65,6 @@ services:
       - "--log.level=INFO"
       - "--accesslog=true"
     volumes:
-      - /var/run/docker.sock:/var/run/docker.sock:ro
       {% if not local %}
       - ./acme.json:/acme.json
       {% endif %}
