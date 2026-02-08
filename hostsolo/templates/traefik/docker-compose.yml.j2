@@ -29,6 +29,7 @@ services:
       - "--providers.docker=true"
       - "--providers.docker.exposedbydefault=false"
       - "--providers.docker.network=hostsolo-proxy"
+      - "--providers.docker.endpoint=tcp://172.17.0.1:2375"
 
       # Entrypoints
       - "--entrypoints.web.address=:80"
