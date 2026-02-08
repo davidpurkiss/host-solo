@@ -4,9 +4,9 @@ data/
 *.log
 acme.json
 
-# Generated compose files
-apps/
-traefik/
+# Generated compose files (at project root only)
+/apps/
+/traefik/
 
 # App config (secrets) - keep env.example, exclude actual env files
 config/*/*.env

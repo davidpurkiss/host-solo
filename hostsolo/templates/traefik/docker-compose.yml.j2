@@ -1,0 +1,69 @@
+version: "3.8"
+
+services:
+  traefik:
+    image: traefik:v3.0
+    container_name: hostsolo-traefik
+    restart: unless-stopped
+    security_opt:
+      - no-new-privileges:true
+    ports:
+      - "80:80"
+      - "443:443"
+      {% if local %}
+      - "8080:8080"  # Dashboard (local only)
+      {% endif %}
+    environment:
+      - TZ=UTC
+    command:
+      # API and Dashboard
+      {% if local %}
+      - "--api.dashboard=true"
+      - "--api.insecure=true"
+      {% else %}
+      - "--api.dashboard=false"
+      {% endif %}
+
+      # Docker provider
+      - "--providers.docker=true"
+      - "--providers.docker.exposedbydefault=false"
+      - "--providers.docker.network=hostsolo-proxy"
+
+      # Entrypoints
+      - "--entrypoints.web.address=:80"
+      - "--entrypoints.websecure.address=:443"
+
+      {% if not local %}
+      # HTTP to HTTPS redirect
+      - "--entrypoints.web.http.redirections.entrypoint.to=websecure"
+      - "--entrypoints.web.http.redirections.entrypoint.scheme=https"
+
+      # Let's Encrypt
+      - "--certificatesresolvers.letsencrypt.acme.httpchallenge=true"
+      - "--certificatesresolvers.letsencrypt.acme.httpchallenge.entrypoint=web"
+      - "--certificatesresolvers.letsencrypt.acme.email={{ config.email }}"
+      - "--certificatesresolvers.letsencrypt.acme.storage=/acme.json"
+      {% endif %}
+
+      # Logging
+      - "--log.level=INFO"
+      - "--accesslog=true"
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+      {% if not local %}
+      - ./acme.json:/acme.json
+      {% endif %}
+    networks:
+      - hostsolo-proxy
+    labels:
+      - "traefik.enable=true"
+      {% if local %}
+      # Dashboard route (local only)
+      - "traefik.http.routers.dashboard.rule=Host(`traefik.localhost`)"
+      - "traefik.http.routers.dashboard.service=api@internal"
+      {% endif %}
+
+networks:
+  hostsolo-proxy:
+    name: hostsolo-proxy
+    external: false

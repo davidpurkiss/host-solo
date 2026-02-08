@@ -57,12 +57,7 @@ Repository = "https://github.com/yourusername/host-solo"
 
 [tool.hatch.build.targets.wheel]
 packages = ["hostsolo"]
-
-[tool.hatch.build]
-include = [
-  "hostsolo/**/*.py",
-  "hostsolo/**/*.j2",
-]
+include = ["*.j2"]
 
 [tool.ruff]
 line-length = 100

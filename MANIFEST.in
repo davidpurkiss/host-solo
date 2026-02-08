@@ -1,0 +1,1 @@
+recursive-include hostsolo/templates *.j2
