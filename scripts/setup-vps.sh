@@ -181,7 +181,7 @@ sshd_set "MaxAuthTries"           "3"
 sshd_set "X11Forwarding"          "no"
 sshd_set "AllowTcpForwarding"     "no"
 
-systemctl restart sshd
+systemctl restart ssh
 ok "SSH hardened (root login disabled, password auth disabled)."
 
 # ============================= PHASE 4: FIREWALL ===========================
