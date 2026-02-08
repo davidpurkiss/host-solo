@@ -86,9 +86,20 @@ def ensure_app_config(app_name: str, env_name: str, tag: str | None = None, loca
     app_dir = project_root / "apps" / env_name / app_name
     app_dir.mkdir(parents=True, exist_ok=True)
 
-    # Create data directories
-    data_base = project_root / "data" / env_name / app_name
-    data_base.mkdir(parents=True, exist_ok=True)
+    # Create data directories from volume mounts
+    for volume in app_config.volumes:
+        # Parse source path (before the colon)
+        source = volume.split(":")[0]
+        # Replace ${ENV} placeholder
+        source = source.replace("${ENV}", env_name)
+        # Convert to absolute path relative to project root
+        if source.startswith("./"):
+            source = source[2:]
+        source_path = project_root / source
+        # Create the directory with permissive permissions for container access
+        source_path.mkdir(parents=True, exist_ok=True)
+        # Make writable by containers (they often run as non-root)
+        source_path.chmod(0o777)
 
     # Render and write docker-compose.yml
     domain = get_full_domain(config, env_name)

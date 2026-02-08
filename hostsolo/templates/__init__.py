@@ -65,12 +65,18 @@ def render_app_compose(
     env = get_jinja_env()
     template = env.get_template("app/docker-compose.yml.j2")
 
-    # Process volumes to replace ${ENV} placeholder
-    processed_volumes = [
-        v.replace("${ENV}", env_name) for v in app_config.volumes
-    ]
-
     project_root = get_project_root()
+
+    # Process volumes: replace ${ENV} placeholder and convert relative paths to absolute
+    processed_volumes = []
+    for v in app_config.volumes:
+        v = v.replace("${ENV}", env_name)
+        # Convert relative paths to absolute (compose file is in apps/{env}/{app}/)
+        if v.startswith("./"):
+            source, target = v.split(":", 1)
+            source = str(project_root / source[2:])  # Remove ./ and make absolute
+            v = f"{source}:{target}"
+        processed_volumes.append(v)
 
     return template.render(
         config=config,

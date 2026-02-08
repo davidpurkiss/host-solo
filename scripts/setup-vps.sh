@@ -263,29 +263,49 @@ if [[ "$DOCKER_MODE" == "rootless" ]]; then
     loginctl enable-linger "$USERNAME"
 
     # Run the rootless setup as the target user
-    su - "$USERNAME" -c '
-        # Disable system docker for this user to avoid conflicts
-        # Install rootless docker
-        dockerd-rootless-setuptool.sh install 2>&1 | tail -5
+    # Note: machinectl provides proper systemd user session, su may not
+    ROOTLESS_OK="no"
 
-        # Enable on boot
-        systemctl --user enable docker 2>/dev/null || true
-    '
+    if command -v machinectl &>/dev/null; then
+        if machinectl shell "$USERNAME@" /bin/bash -c '
+            dockerd-rootless-setuptool.sh install 2>&1 | tail -5
+            systemctl --user enable docker
+            systemctl --user start docker
+        ' 2>/dev/null; then
+            ROOTLESS_OK="yes"
+        fi
+    else
+        if su - "$USERNAME" -c '
+            export XDG_RUNTIME_DIR=/run/user/$(id -u)
+            dockerd-rootless-setuptool.sh install 2>&1 | tail -5
+            systemctl --user enable docker
+            systemctl --user start docker
+        ' 2>/dev/null; then
+            ROOTLESS_OK="yes"
+        fi
+    fi
 
-    # Add env vars to bashrc
-    BASHRC="$USER_HOME/.bashrc"
-    if ! grep -q "DOCKER_HOST.*rootless" "$BASHRC" 2>/dev/null; then
-        cat >> "$BASHRC" <<'ENVEOF'
+    if [[ "$ROOTLESS_OK" == "yes" ]]; then
+        # Add env vars to bashrc
+        BASHRC="$USER_HOME/.bashrc"
+        if ! grep -q "DOCKER_HOST.*rootless" "$BASHRC" 2>/dev/null; then
+            cat >> "$BASHRC" <<'ENVEOF'
 
 # Docker rootless mode
 export PATH=/usr/bin:$PATH
 export DOCKER_HOST=unix://${XDG_RUNTIME_DIR}/docker.sock
 ENVEOF
-    fi
+        fi
 
-    ok "Docker rootless mode configured."
-    warn "Note: Rootless Docker cannot bind to ports below 1024."
-    info "Traefik (via Host Solo) handles ports 80/443 — this is fine."
+        ok "Docker rootless mode configured."
+        warn "Note: Rootless Docker cannot bind to ports below 1024."
+        info "Traefik (via Host Solo) handles ports 80/443 — this is fine."
+    else
+        warn "Rootless Docker setup failed. Falling back to group mode."
+        usermod -aG docker "$USERNAME"
+        ok "User '$USERNAME' added to docker group."
+        warn "Docker group access is equivalent to root. Be cautious."
+    fi
 
 else
     # Docker group mode
