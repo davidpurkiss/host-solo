@@ -319,7 +319,7 @@ if [[ "$INSTALL_HOSTSOLO" == "yes" ]]; then
             cd /tmp
             git clone https://github.com/davidpurkiss/host-solo.git hostsolo-src 2>/dev/null
             cd hostsolo-src
-            pip install -e . -q
+            pip install . -q
             cd /
             rm -rf /tmp/hostsolo-src
         }
