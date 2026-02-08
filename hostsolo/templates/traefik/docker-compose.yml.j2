@@ -1,5 +1,3 @@
-version: "3.8"
-
 services:
   traefik:
     image: traefik:v3.3
@@ -7,6 +5,8 @@ services:
     restart: unless-stopped
     security_opt:
       - no-new-privileges:true
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
     ports:
       - "80:80"
       - "443:443"
@@ -29,7 +29,7 @@ services:
       - "--providers.docker=true"
       - "--providers.docker.exposedbydefault=false"
       - "--providers.docker.network=hostsolo-proxy"
-      - "--providers.docker.endpoint=tcp://172.17.0.1:2375"
+      - "--providers.docker.endpoint=tcp://host.docker.internal:2375"
 
       # Entrypoints
       - "--entrypoints.web.address=:80"
