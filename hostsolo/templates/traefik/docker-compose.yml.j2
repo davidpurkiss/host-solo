@@ -2,7 +2,7 @@ version: "3.8"
 
 services:
   traefik:
-    image: traefik:v3.0
+    image: traefik:v3.3
     container_name: hostsolo-traefik
     restart: unless-stopped
     security_opt:
@@ -15,6 +15,7 @@ services:
       {% endif %}
     environment:
       - TZ=UTC
+      - DOCKER_API_VERSION=1.44
     command:
       # API and Dashboard
       {% if local %}
