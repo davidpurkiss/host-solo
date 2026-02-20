@@ -155,15 +155,24 @@ def deploy_up(
     # Ensure env files exist
     ensure_env_files(app_name, env_name)
 
+    app_config = config.apps[app_name]
     domain = get_full_domain(config, env_name)
 
     console.print(f"[bold]Deploying {app_name} to {env_name}...[/bold]")
-    console.print(f"  Domain: {domain}")
+    if app_config.ports:
+        console.print(f"  Domain: {domain}")
 
     if tag:
         console.print(f"  Tag: {tag}")
 
     compose_path = ensure_app_config(app_name, env_name, tag=tag, local=local)
+
+    # Ensure the environment network exists
+    env_network = f"hostsolo-{env_name}"
+    subprocess.run(
+        ["docker", "network", "create", env_network],
+        capture_output=True,
+    )
 
     # Pull latest image
     if pull:
@@ -177,10 +186,11 @@ def deploy_up(
 
     if result.returncode == 0:
         console.print(f"[green]✓[/green] {app_name} deployed to {env_name}")
-        if local:
-            console.print(f"  URL: http://{domain}")
-        else:
-            console.print(f"  URL: https://{domain}")
+        if app_config.ports:
+            if local:
+                console.print(f"  URL: http://{domain}")
+            else:
+                console.print(f"  URL: https://{domain}")
     else:
         console.print(f"[red]✗[/red] Failed to deploy {app_name}")
         raise typer.Exit(1)

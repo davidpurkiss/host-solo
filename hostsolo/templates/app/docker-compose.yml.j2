@@ -64,4 +64,5 @@ networks:
     name: hostsolo-proxy
   {% endif %}
   hostsolo-{{ env_name }}:
+    external: true
     name: hostsolo-{{ env_name }}
