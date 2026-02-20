@@ -308,6 +308,21 @@ ENVEOF
         ok "Docker rootless mode configured."
     else
         warn "Rootless Docker setup failed. Falling back to group mode."
+
+        # Clean up: dockerd-rootless-setuptool.sh may have added DOCKER_HOST
+        # to .bashrc before failing — remove it so the system daemon is used
+        BASHRC="$USER_HOME/.bashrc"
+        if [[ -f "$BASHRC" ]]; then
+            sed -i '/# Docker rootless/d' "$BASHRC"
+            sed -i '/DOCKER_HOST=.*docker\.sock/d' "$BASHRC"
+            sed -i '/dockerd-rootless/d' "$BASHRC"
+        fi
+
+        # Undo rootless install if it partially succeeded
+        machinectl shell "$USERNAME@" /bin/bash -c '
+            dockerd-rootless-setuptool.sh uninstall 2>/dev/null || true
+        ' 2>/dev/null || true
+
         usermod -aG docker "$USERNAME"
         ok "User '$USERNAME' added to docker group."
         warn "Docker group access is equivalent to root. Be cautious."
