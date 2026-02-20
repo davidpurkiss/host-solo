@@ -36,7 +36,8 @@ def ensure_traefik_config(local: bool = False) -> None:
     # Create acme.json for Let's Encrypt certificates (must have restricted permissions)
     acme_path = traefik_dir / "acme.json"
     if not acme_path.exists():
-        acme_path.touch(mode=0o600)
+        acme_path.touch()
+    acme_path.chmod(0o600)
 
     # Create dynamic configuration directory
     dynamic_dir = traefik_dir / "dynamic"
