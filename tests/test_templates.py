@@ -295,3 +295,41 @@ def test_network_alias_for_cross_app_dns(sample_config, tmp_path, monkeypatch):
     networks = parsed["services"]["directus"]["networks"]
     assert "hostsolo-prod" in networks
     assert networks["hostsolo-prod"]["aliases"] == ["directus"]
+
+
+def test_internal_service_no_traefik(sample_config, tmp_path, monkeypatch):
+    """Test that apps without ports get no Traefik labels or proxy network."""
+    config_file = tmp_path / "hostsolo.yaml"
+    config_file.write_text(yaml.dump({"domain": "example.com", "email": "test@test.com"}))
+    monkeypatch.chdir(tmp_path)
+
+    app_config = AppConfig(
+        image="postgres",
+        tag="14",
+        volumes=["./data/${ENV}/db/pgdata:/var/lib/postgresql/data"],
+        environment={"POSTGRES_DB": "mydb"},
+    )
+
+    content = render_app_compose(
+        config=sample_config,
+        app_name="mydb",
+        app_config=app_config,
+        env_name="prod",
+        domain="example.com",
+    )
+
+    parsed = yaml.safe_load(content)
+    service = parsed["services"]["mydb"]
+
+    # Should NOT have Traefik labels
+    assert "labels" not in service
+
+    # Should NOT be on the proxy network
+    assert "hostsolo-proxy" not in service["networks"]
+
+    # Should still be on the env network with alias
+    assert "hostsolo-prod" in service["networks"]
+    assert service["networks"]["hostsolo-prod"]["aliases"] == ["mydb"]
+
+    # Proxy network should not be in top-level networks
+    assert "hostsolo-proxy" not in parsed["networks"]

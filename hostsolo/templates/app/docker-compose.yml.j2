@@ -25,10 +25,13 @@ services:
       {% endfor %}
     {% endif %}
     networks:
+      {% if app_config.ports %}
       hostsolo-proxy:
+      {% endif %}
       hostsolo-{{ env_name }}:
         aliases:
           - {{ app_name }}
+    {% if app_config.ports %}
     labels:
       - "traefik.enable=true"
 
@@ -44,20 +47,21 @@ services:
       - "traefik.http.routers.{{ app_name }}-{{ env_name }}.tls.certresolver=letsencrypt"
       {% endif %}
 
-      {% if app_config.ports %}
       # Service port (first port in list)
       - "traefik.http.services.{{ app_name }}-{{ env_name }}.loadbalancer.server.port={{ app_config.ports[0] }}"
-      {% endif %}
 
       {% if app_config.healthcheck_path %}
       # Health check
       - "traefik.http.services.{{ app_name }}-{{ env_name }}.loadbalancer.healthcheck.path={{ app_config.healthcheck_path }}"
       - "traefik.http.services.{{ app_name }}-{{ env_name }}.loadbalancer.healthcheck.interval=30s"
       {% endif %}
+    {% endif %}
 
 networks:
+  {% if app_config.ports %}
   hostsolo-proxy:
     external: true
     name: hostsolo-proxy
+  {% endif %}
   hostsolo-{{ env_name }}:
     name: hostsolo-{{ env_name }}
