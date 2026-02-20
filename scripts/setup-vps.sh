@@ -213,10 +213,11 @@ info "──── Phase 5: Docker ────"
 if command -v docker &>/dev/null; then
     warn "Docker already installed. Skipping installation."
 else
-    # Install prerequisites
+    # Install prerequisites (uidmap + dbus-user-session for rootless,
+    # slirp4netns for rootless networking, systemd-container for machinectl)
     apt-get install -y -qq \
         ca-certificates curl gnupg lsb-release \
-        uidmap dbus-user-session > /dev/null 2>&1
+        uidmap dbus-user-session slirp4netns systemd-container > /dev/null 2>&1
 
     # Add Docker's official GPG key and repo
     install -m 0755 -d /etc/apt/keyrings
@@ -259,30 +260,37 @@ ok "Docker log rotation configured."
 if [[ "$DOCKER_MODE" == "rootless" ]]; then
     info "Setting up Docker rootless mode for '$USERNAME'..."
 
-    # Rootless needs systemd user session — enable lingering
+    # Allow unprivileged users to bind low ports (Traefik needs 80/443)
+    echo "net.ipv4.ip_unprivileged_port_start=0" > /etc/sysctl.d/99-unprivileged-ports.conf
+    sysctl --system > /dev/null 2>&1
+
+    # Enable lingering so user's systemd instance starts at boot
     loginctl enable-linger "$USERNAME"
 
-    # Run the rootless setup as the target user
-    # Note: machinectl provides proper systemd user session, su may not
+    # Ensure the user's XDG_RUNTIME_DIR exists (systemd-logind creates it
+    # on login, but the user hasn't logged in yet)
+    USER_UID=$(id -u "$USERNAME")
+    RUNTIME_DIR="/run/user/$USER_UID"
+    if [[ ! -d "$RUNTIME_DIR" ]]; then
+        mkdir -p "$RUNTIME_DIR"
+        chown "$USERNAME:$USERNAME" "$RUNTIME_DIR"
+        chmod 700 "$RUNTIME_DIR"
+    fi
+
+    # Give systemd user manager a moment to start after enabling linger
+    sleep 2
+
+    # Run rootless setup via machinectl (provides a proper systemd user
+    # session — plain `su` does NOT work for `systemctl --user`)
     ROOTLESS_OK="no"
 
-    if command -v machinectl &>/dev/null; then
-        if machinectl shell "$USERNAME@" /bin/bash -c '
-            dockerd-rootless-setuptool.sh install 2>&1 | tail -5
-            systemctl --user enable docker
-            systemctl --user start docker
-        ' 2>/dev/null; then
-            ROOTLESS_OK="yes"
-        fi
-    else
-        if su - "$USERNAME" -c '
-            export XDG_RUNTIME_DIR=/run/user/$(id -u)
-            dockerd-rootless-setuptool.sh install 2>&1 | tail -5
-            systemctl --user enable docker
-            systemctl --user start docker
-        ' 2>/dev/null; then
-            ROOTLESS_OK="yes"
-        fi
+    if machinectl shell "$USERNAME@" /bin/bash -c '
+        export XDG_RUNTIME_DIR=/run/user/$(id -u)
+        dockerd-rootless-setuptool.sh install 2>&1 | tail -5
+        systemctl --user enable docker
+        systemctl --user start docker
+    ' 2>/dev/null; then
+        ROOTLESS_OK="yes"
     fi
 
     if [[ "$ROOTLESS_OK" == "yes" ]]; then
@@ -298,8 +306,6 @@ ENVEOF
         fi
 
         ok "Docker rootless mode configured."
-        warn "Note: Rootless Docker cannot bind to ports below 1024."
-        info "Traefik (via Host Solo) handles ports 80/443 — this is fine."
     else
         warn "Rootless Docker setup failed. Falling back to group mode."
         usermod -aG docker "$USERNAME"
