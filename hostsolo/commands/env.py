@@ -38,7 +38,7 @@ def create(
 
     import yaml
 
-    from hostsolo.config import find_config_file
+    from hostsolo.config import dump_yaml, find_config_file
 
     config_path = find_config_file()
     if config_path is None:
@@ -58,7 +58,7 @@ def create(
     data["environments"][name] = {"subdomain": subdomain or name}
 
     with open(config_path, "w") as f:
-        yaml.dump(data, f, default_flow_style=False, sort_keys=False)
+        dump_yaml(data, f)
 
     full_subdomain = subdomain or name
     console.print(f"[green]✓[/green] Created environment: {name}")

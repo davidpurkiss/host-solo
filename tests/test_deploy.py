@@ -93,6 +93,28 @@ class TestEnsureAppConfig:
             ensure_app_config("directus", "nonexistent")
         assert exc_info.value.exit_code == 1
 
+    def test_file_bind_mount_no_error(self, project_with_env_files: Path):
+        """Test ensure_app_config doesn't crash when volume source is an existing file."""
+        # Create a file at the volume source path (data/prod/directus)
+        file_path = project_with_env_files / "data" / "prod" / "directus"
+        file_path.parent.mkdir(parents=True, exist_ok=True)
+        file_path.write_text("test data")
+
+        # This should NOT raise FileExistsError
+        compose_path = ensure_app_config("directus", "prod")
+        assert compose_path.exists()
+
+        # The file should still be a file, not replaced with a directory
+        assert file_path.is_file()
+
+    def test_directory_bind_mount_creates_dir(self, project_with_env_files: Path):
+        """Test ensure_app_config creates directories for non-existent volume sources."""
+        compose_path = ensure_app_config("directus", "prod")
+
+        # The volume source directory should have been created
+        data_dir = project_with_env_files / "data" / "prod" / "directus"
+        assert data_dir.is_dir()
+
 
 class TestDeployUp:
     """Tests for deploy up command."""

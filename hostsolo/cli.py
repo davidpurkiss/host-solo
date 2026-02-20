@@ -33,6 +33,8 @@ def init(
 
     import yaml
 
+    from hostsolo.config import dump_yaml
+
     config_path = Path.cwd() / "hostsolo.yaml"
 
     if config_path.exists():
@@ -74,7 +76,7 @@ def init(
     }
 
     with open(config_path, "w") as f:
-        yaml.dump(config, f, default_flow_style=False, sort_keys=False)
+        dump_yaml(config, f)
 
     # Create .env.example for hostsolo CLI credentials
     env_example_path = Path.cwd() / ".env.example"

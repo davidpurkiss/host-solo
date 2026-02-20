@@ -12,10 +12,10 @@ services:
     env_file:
       - {{ project_root }}/config/{{ app_name }}/shared.env
       - {{ project_root }}/config/{{ app_name }}/{{ env_name }}.env
-    {% if app_config.environment %}
+    {% if environment %}
     environment:
-      {% for key, value in app_config.environment.items() %}
-      {{ key }}: "{{ value }}"
+      {% for key, value in environment.items() %}
+      {{ key }}: {{ value | yaml_value }}
       {% endfor %}
     {% endif %}
     networks:

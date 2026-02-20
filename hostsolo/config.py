@@ -151,3 +151,27 @@ def get_project_root() -> Path:
     if config_file:
         return config_file.parent
     return Path.cwd()
+
+
+class _LiteralBlockDumper(yaml.SafeDumper):
+    pass
+
+
+def _str_representer(dumper: yaml.SafeDumper, data: str) -> yaml.ScalarNode:
+    if "\n" in data:
+        return dumper.represent_scalar("tag:yaml.org,2002:str", data, style="|")
+    return dumper.represent_scalar("tag:yaml.org,2002:str", data)
+
+
+_LiteralBlockDumper.add_representer(str, _str_representer)
+
+
+def dump_yaml(data: dict, stream=None) -> str | None:
+    """Dump data to YAML, preserving multiline strings as literal blocks."""
+    return yaml.dump(
+        data,
+        stream=stream,
+        Dumper=_LiteralBlockDumper,
+        default_flow_style=False,
+        sort_keys=False,
+    )

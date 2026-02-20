@@ -96,6 +96,11 @@ def ensure_app_config(app_name: str, env_name: str, tag: str | None = None, loca
         if source.startswith("./"):
             source = source[2:]
         source_path = project_root / source
+
+        # Skip if source is an existing file (file bind mount)
+        if source_path.is_file():
+            continue
+
         # Create the directory with permissive permissions for container access
         source_path.mkdir(parents=True, exist_ok=True)
         # Make writable by containers (they often run as non-root)

@@ -12,6 +12,7 @@ from hostsolo.config import (
     DNSConfig,
     EnvironmentConfig,
     HostSoloConfig,
+    dump_yaml,
     get_full_domain,
     load_config,
 )
@@ -163,3 +164,21 @@ def test_environment_config():
 
     root_env = EnvironmentConfig(subdomain="")
     assert root_env.subdomain == ""
+
+
+def test_dump_yaml_preserves_multiline_strings():
+    """Test dump_yaml uses literal block style for multiline strings."""
+    data = {
+        "simple": "hello",
+        "multiline": "line1\nline2\nline3",
+        "trailing_newline": "line1\nline2\n",
+    }
+    output = dump_yaml(data)
+
+    assert "multiline: |-" in output
+    assert "trailing_newline: |" in output
+    assert "simple: hello" in output
+
+    # Verify round-trip
+    reloaded = yaml.safe_load(output)
+    assert reloaded == data
