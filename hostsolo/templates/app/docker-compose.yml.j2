@@ -3,6 +3,12 @@ services:
     image: {{ app_config.image }}:{{ app_config.tag }}
     container_name: hostsolo-{{ env_name }}-{{ app_name }}
     restart: unless-stopped
+    {% if local and app_config.ports %}
+    ports:
+      {% for port in app_config.ports %}
+      - "{{ port }}:{{ port }}"
+      {% endfor %}
+    {% endif %}
     {% if volumes %}
     volumes:
       {% for volume in volumes %}
@@ -19,8 +25,10 @@ services:
       {% endfor %}
     {% endif %}
     networks:
-      - hostsolo-proxy
-      - hostsolo-{{ env_name }}
+      hostsolo-proxy:
+      hostsolo-{{ env_name }}:
+        aliases:
+          - {{ app_name }}
     labels:
       - "traefik.enable=true"
 

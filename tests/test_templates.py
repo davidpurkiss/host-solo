@@ -233,3 +233,65 @@ def test_unresolved_env_var_kept(sample_config, tmp_path, monkeypatch):
     )
 
     assert "${UNDEFINED}" in content
+
+
+def test_local_mode_publishes_ports(sample_config, tmp_path, monkeypatch):
+    """Test that local mode adds Docker Compose ports directives."""
+    config_file = tmp_path / "hostsolo.yaml"
+    config_file.write_text(yaml.dump({"domain": "example.com", "email": "test@test.com"}))
+    monkeypatch.chdir(tmp_path)
+
+    app_config = sample_config.apps["directus"]
+
+    content = render_app_compose(
+        config=sample_config,
+        app_name="directus",
+        app_config=app_config,
+        env_name="dev",
+        domain="dev.example.com",
+        local=True,
+    )
+
+    assert '"8055:8055"' in content
+
+
+def test_non_local_mode_no_ports(sample_config, tmp_path, monkeypatch):
+    """Test that non-local mode does not add Docker Compose ports."""
+    config_file = tmp_path / "hostsolo.yaml"
+    config_file.write_text(yaml.dump({"domain": "example.com", "email": "test@test.com"}))
+    monkeypatch.chdir(tmp_path)
+
+    app_config = sample_config.apps["directus"]
+
+    content = render_app_compose(
+        config=sample_config,
+        app_name="directus",
+        app_config=app_config,
+        env_name="prod",
+        domain="example.com",
+        local=False,
+    )
+
+    assert '"8055:8055"' not in content
+
+
+def test_network_alias_for_cross_app_dns(sample_config, tmp_path, monkeypatch):
+    """Test that app name is added as a network alias on the env network."""
+    config_file = tmp_path / "hostsolo.yaml"
+    config_file.write_text(yaml.dump({"domain": "example.com", "email": "test@test.com"}))
+    monkeypatch.chdir(tmp_path)
+
+    app_config = sample_config.apps["directus"]
+
+    content = render_app_compose(
+        config=sample_config,
+        app_name="directus",
+        app_config=app_config,
+        env_name="prod",
+        domain="example.com",
+    )
+
+    parsed = yaml.safe_load(content)
+    networks = parsed["services"]["directus"]["networks"]
+    assert "hostsolo-prod" in networks
+    assert networks["hostsolo-prod"]["aliases"] == ["directus"]
