@@ -103,8 +103,13 @@ def ensure_app_config(app_name: str, env_name: str, tag: str | None = None, loca
 
         # Create the directory with permissive permissions for container access
         source_path.mkdir(parents=True, exist_ok=True)
-        # Make writable by containers (they often run as non-root)
-        source_path.chmod(0o777)
+        # Make writable by containers (they often run as non-root).
+        # Skip if permissions can't be changed (e.g., directory already
+        # owned by a container process like postgres).
+        try:
+            source_path.chmod(0o777)
+        except PermissionError:
+            pass
 
     # Render and write docker-compose.yml
     domain = get_full_domain(config, env_name)
