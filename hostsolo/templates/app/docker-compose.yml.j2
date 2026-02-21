@@ -3,6 +3,15 @@ services:
     image: {{ app_config.image }}:{{ app_config.tag }}
     container_name: hostsolo-{{ env_name }}-{{ app_name }}
     restart: unless-stopped
+    {% if app_config.packages and app_config.command %}
+    entrypoint: ["sh", "-c"]
+    command: ["apk add --no-cache {{ app_config.packages | join(' ') }} && exec {{ app_config.command | join(' ') }}"]
+    {% elif app_config.command %}
+    command:
+      {% for arg in app_config.command %}
+      - {{ arg | yaml_value }}
+      {% endfor %}
+    {% endif %}
     {% if local and app_config.ports %}
     ports:
       {% for port in app_config.ports %}

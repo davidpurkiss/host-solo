@@ -109,6 +109,21 @@ def test_app_config():
     assert app.ports == ["80"]
     assert app.volumes == []  # default
     assert app.environment == {}  # default
+    assert app.command == []  # default
+    assert app.packages == []  # default
+
+
+def test_app_config_command_and_packages():
+    """Test AppConfig with command and packages fields."""
+    app = AppConfig(
+        image="alpine",
+        tag="3.21",
+        command=["tinyproxy", "-d"],
+        packages=["tinyproxy"],
+    )
+
+    assert app.command == ["tinyproxy", "-d"]
+    assert app.packages == ["tinyproxy"]
 
 
 def test_get_full_domain():

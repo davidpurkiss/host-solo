@@ -333,3 +333,80 @@ def test_internal_service_no_traefik(sample_config, tmp_path, monkeypatch):
 
     # Proxy network should not be in top-level networks
     assert "hostsolo-proxy" not in parsed["networks"]
+
+
+def test_command_override(sample_config, tmp_path, monkeypatch):
+    """Test that command field renders as a command list."""
+    config_file = tmp_path / "hostsolo.yaml"
+    config_file.write_text(yaml.dump({"domain": "example.com", "email": "test@test.com"}))
+    monkeypatch.chdir(tmp_path)
+
+    app_config = AppConfig(
+        image="nginx",
+        tag="latest",
+        ports=["80"],
+        command=["nginx", "-g", "daemon off;"],
+    )
+
+    content = render_app_compose(
+        config=sample_config,
+        app_name="nginx",
+        app_config=app_config,
+        env_name="prod",
+        domain="example.com",
+    )
+
+    parsed = yaml.safe_load(content)
+    service = parsed["services"]["nginx"]
+    assert service["command"] == ["nginx", "-g", "daemon off;"]
+    assert "entrypoint" not in service
+
+
+def test_packages_with_command(sample_config, tmp_path, monkeypatch):
+    """Test that packages + command renders entrypoint with apk install."""
+    config_file = tmp_path / "hostsolo.yaml"
+    config_file.write_text(yaml.dump({"domain": "example.com", "email": "test@test.com"}))
+    monkeypatch.chdir(tmp_path)
+
+    app_config = AppConfig(
+        image="alpine",
+        tag="3.21",
+        command=["tinyproxy", "-d", "-c", "/etc/tinyproxy/tinyproxy.conf"],
+        packages=["tinyproxy"],
+    )
+
+    content = render_app_compose(
+        config=sample_config,
+        app_name="tinyproxy",
+        app_config=app_config,
+        env_name="prod",
+        domain="example.com",
+    )
+
+    parsed = yaml.safe_load(content)
+    service = parsed["services"]["tinyproxy"]
+    assert service["entrypoint"] == ["sh", "-c"]
+    assert "apk add --no-cache tinyproxy" in service["command"][0]
+    assert "exec tinyproxy -d -c /etc/tinyproxy/tinyproxy.conf" in service["command"][0]
+
+
+def test_no_command_no_entrypoint(sample_config, tmp_path, monkeypatch):
+    """Test that apps without command/packages have neither in output."""
+    config_file = tmp_path / "hostsolo.yaml"
+    config_file.write_text(yaml.dump({"domain": "example.com", "email": "test@test.com"}))
+    monkeypatch.chdir(tmp_path)
+
+    app_config = sample_config.apps["directus"]
+
+    content = render_app_compose(
+        config=sample_config,
+        app_name="directus",
+        app_config=app_config,
+        env_name="prod",
+        domain="example.com",
+    )
+
+    parsed = yaml.safe_load(content)
+    service = parsed["services"]["directus"]
+    assert "command" not in service
+    assert "entrypoint" not in service

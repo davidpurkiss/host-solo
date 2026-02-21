@@ -44,6 +44,8 @@ class AppConfig(BaseModel):
     ports: list[str] = Field(default_factory=list)
     volumes: list[str] = Field(default_factory=list)
     environment: dict[str, str] = Field(default_factory=dict)
+    command: list[str] = Field(default_factory=list)
+    packages: list[str] = Field(default_factory=list)
     backup_paths: list[str] = Field(default_factory=list)
     healthcheck_path: str | None = None
     replicas: int = 1
