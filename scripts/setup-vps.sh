@@ -26,6 +26,8 @@
 # =============================================================================
 set -euo pipefail
 
+main() {
+
 # ---------------------------------------------------------------------------
 # Colours & helpers
 # ---------------------------------------------------------------------------
@@ -474,3 +476,7 @@ echo ""
 echo -e "  ${RED}⚠  Do NOT close this session until you've confirmed${NC}"
 echo -e "  ${RED}   SSH access works in a separate terminal!${NC}"
 echo ""
+
+}
+
+main "$@"
