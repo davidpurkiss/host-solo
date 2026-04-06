@@ -289,7 +289,7 @@ if [[ "$DOCKER_MODE" == "rootless" ]]; then
         dockerd-rootless-setuptool.sh install 2>&1 | tail -5
         systemctl --user enable docker
         systemctl --user start docker
-    ' 2>/dev/null; then
+    ' < /dev/null 2>/dev/null; then
         ROOTLESS_OK="yes"
     fi
 
@@ -321,7 +321,7 @@ ENVEOF
         # Undo rootless install if it partially succeeded
         machinectl shell "$USERNAME@" /bin/bash -c '
             dockerd-rootless-setuptool.sh uninstall 2>/dev/null || true
-        ' 2>/dev/null || true
+        ' < /dev/null 2>/dev/null || true
 
         usermod -aG docker "$USERNAME"
         ok "User '$USERNAME' added to docker group."
@@ -352,19 +352,21 @@ if [[ "$INSTALL_HOSTSOLO" == "yes" ]]; then
     HOSTSOLO_VENV="$USER_HOME/.hostsolo-venv"
 
     su - "$USERNAME" -c "
+        set -e
         python3 -m venv '$HOSTSOLO_VENV'
         source '$HOSTSOLO_VENV/bin/activate'
         pip install --upgrade pip -q
-        pip install hostsolo -q 2>/dev/null || {
-            # If not on PyPI yet, install from source
+        if ! pip install hostsolo -q 2>/dev/null; then
+            # Not on PyPI yet — install from source
             cd /tmp
-            git clone https://github.com/davidpurkiss/host-solo.git hostsolo-src 2>/dev/null
+            rm -rf hostsolo-src
+            git clone https://github.com/davidpurkiss/host-solo.git hostsolo-src
             cd hostsolo-src
             pip install . -q
             cd /
             rm -rf /tmp/hostsolo-src
-        }
-    "
+        fi
+    " < /dev/null
 
     # Add venv bin to PATH so `hostsolo` is always available
     BASHRC="$USER_HOME/.bashrc"
