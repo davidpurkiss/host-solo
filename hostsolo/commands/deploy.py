@@ -129,6 +129,29 @@ def ensure_app_config(app_name: str, env_name: str, tag: str | None = None, loca
     return compose_path
 
 
+def _ensure_dns(config, env_name: str) -> None:
+    """Create/update DNS record for the environment. Warns but doesn't fail."""
+    from hostsolo.commands.dns import get_dns_provider, get_public_ip
+
+    domain = get_full_domain(config, env_name)
+    env_config = config.environments[env_name]
+    record_name = env_config.subdomain or "@"
+
+    try:
+        provider = get_dns_provider()
+        ip = get_public_ip()
+        console.print(f"  Setting up DNS: {domain} → {ip}")
+        provider.upsert_a_record(domain=config.domain, name=record_name, ip=ip)
+        console.print(f"[green]✓[/green] DNS record set: {domain} → {ip}")
+    except SystemExit:
+        # get_dns_provider raises typer.Exit if not configured — just warn
+        console.print("[yellow]![/yellow] DNS not configured, skipping automatic DNS setup")
+        console.print("  Run 'hostsolo dns setup' manually, or configure a DNS provider")
+    except Exception as e:
+        console.print(f"[yellow]![/yellow] DNS setup failed: {e}")
+        console.print("  Run 'hostsolo dns setup' manually")
+
+
 @app.command("up")
 def deploy_up(
     app_name: str = typer.Argument(..., help="Name of the app to deploy"),
@@ -166,6 +189,10 @@ def deploy_up(
         console.print(f"  Tag: {tag}")
 
     compose_path = ensure_app_config(app_name, env_name, tag=tag, local=local)
+
+    # Set up DNS record (skip in local mode)
+    if not local and app_config.ports:
+        _ensure_dns(config, env_name)
 
     # Ensure the environment network exists
     env_network = f"hostsolo-{env_name}"
