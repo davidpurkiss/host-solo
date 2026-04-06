@@ -296,10 +296,11 @@ if [[ "$DOCKER_MODE" == "rootless" ]]; then
     fi
 
     if [[ "$ROOTLESS_OK" == "yes" ]]; then
-        # Add env vars to bashrc
-        BASHRC="$USER_HOME/.bashrc"
-        if ! grep -q "DOCKER_HOST.*rootless" "$BASHRC" 2>/dev/null; then
-            cat >> "$BASHRC" <<'ENVEOF'
+        # Add env vars to profile (not .bashrc — its interactive guard
+        # blocks non-interactive shells like hostsolo subprocesses)
+        PROFILE="$USER_HOME/.profile"
+        if ! grep -q "DOCKER_HOST.*rootless" "$PROFILE" 2>/dev/null; then
+            cat >> "$PROFILE" <<'ENVEOF'
 
 # Docker rootless mode
 export PATH=/usr/bin:$PATH
@@ -312,13 +313,14 @@ ENVEOF
         warn "Rootless Docker setup failed. Falling back to group mode."
 
         # Clean up: dockerd-rootless-setuptool.sh may have added DOCKER_HOST
-        # to .bashrc before failing — remove it so the system daemon is used
-        BASHRC="$USER_HOME/.bashrc"
-        if [[ -f "$BASHRC" ]]; then
-            sed -i '/# Docker rootless/d' "$BASHRC"
-            sed -i '/DOCKER_HOST=.*docker\.sock/d' "$BASHRC"
-            sed -i '/dockerd-rootless/d' "$BASHRC"
-        fi
+        # to .profile/.bashrc before failing — remove it so the system daemon is used
+        for f in "$USER_HOME/.profile" "$USER_HOME/.bashrc"; do
+            if [[ -f "$f" ]]; then
+                sed -i '/# Docker rootless/d' "$f"
+                sed -i '/DOCKER_HOST=.*docker\.sock/d' "$f"
+                sed -i '/dockerd-rootless/d' "$f"
+            fi
+        done
 
         # Undo rootless install if it partially succeeded
         machinectl shell "$USERNAME@" /bin/bash -c '
@@ -371,9 +373,9 @@ if [[ "$INSTALL_HOSTSOLO" == "yes" ]]; then
     " < /dev/null
 
     # Add venv bin to PATH so `hostsolo` is always available
-    BASHRC="$USER_HOME/.bashrc"
-    if ! grep -q "hostsolo-venv" "$BASHRC" 2>/dev/null; then
-        cat >> "$BASHRC" <<PATHEOF
+    PROFILE="$USER_HOME/.profile"
+    if ! grep -q "hostsolo-venv" "$PROFILE" 2>/dev/null; then
+        cat >> "$PROFILE" <<PATHEOF
 
 # Host Solo
 export PATH="$HOSTSOLO_VENV/bin:\$PATH"
