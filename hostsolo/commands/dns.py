@@ -4,7 +4,7 @@ import typer
 from rich.console import Console
 from rich.table import Table
 
-from hostsolo.config import get_full_domain, load_config, load_env_settings
+from hostsolo.config import get_dns_zone_and_record, get_full_domain, load_config, load_env_settings
 
 app = typer.Typer()
 console = Console()
@@ -65,18 +65,15 @@ def setup(
     provider = get_dns_provider()
 
     domain = get_full_domain(config, env_name)
+    zone, record_name = get_dns_zone_and_record(config, env_name)
     target_ip = ip or get_public_ip()
 
     console.print(f"[bold]Setting up DNS for {domain}...[/bold]")
     console.print(f"  IP: {target_ip}")
 
-    # Determine the record name (subdomain or @ for root)
-    env_config = config.environments[env_name]
-    record_name = env_config.subdomain or "@"
-
     try:
         provider.upsert_a_record(
-            domain=config.domain,
+            domain=zone,
             name=record_name,
             ip=target_ip,
         )
@@ -94,10 +91,12 @@ def list_records() -> None:
     config = load_config()
     provider = get_dns_provider()
 
-    console.print(f"[bold]DNS records for {config.domain}[/bold]")
+    zone = config.dns.zone or config.domain
+
+    console.print(f"[bold]DNS records for {zone}[/bold]")
 
     try:
-        records = provider.list_records(config.domain)
+        records = provider.list_records(zone)
 
         table = Table()
         table.add_column("Type")
@@ -129,8 +128,7 @@ def delete(
     provider = get_dns_provider()
 
     domain = get_full_domain(config, env_name)
-    env_config = config.environments[env_name]
-    record_name = env_config.subdomain or "@"
+    zone, record_name = get_dns_zone_and_record(config, env_name)
 
     if not force:
         confirm = typer.confirm(f"Delete DNS record for {domain}?")
@@ -140,7 +138,7 @@ def delete(
     console.print(f"[bold]Deleting DNS record for {domain}...[/bold]")
 
     try:
-        provider.delete_a_record(domain=config.domain, name=record_name)
+        provider.delete_a_record(domain=zone, name=record_name)
         console.print(f"[green]✓[/green] A record deleted: {domain}")
     except Exception as e:
         console.print(f"[red]✗[/red] Failed to delete DNS record: {e}")

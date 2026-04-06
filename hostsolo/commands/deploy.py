@@ -5,7 +5,7 @@ from pathlib import Path
 import typer
 from rich.console import Console
 
-from hostsolo.config import get_full_domain, get_project_root, load_config
+from hostsolo.config import get_dns_zone_and_record, get_full_domain, get_project_root, load_config
 
 app = typer.Typer()
 console = Console()
@@ -134,14 +134,13 @@ def _ensure_dns(config, env_name: str) -> None:
     from hostsolo.commands.dns import get_dns_provider, get_public_ip
 
     domain = get_full_domain(config, env_name)
-    env_config = config.environments[env_name]
-    record_name = env_config.subdomain or "@"
+    zone, record_name = get_dns_zone_and_record(config, env_name)
 
     try:
         provider = get_dns_provider()
         ip = get_public_ip()
         console.print(f"  Setting up DNS: {domain} → {ip}")
-        provider.upsert_a_record(domain=config.domain, name=record_name, ip=ip)
+        provider.upsert_a_record(domain=zone, name=record_name, ip=ip)
         console.print(f"[green]✓[/green] DNS record set: {domain} → {ip}")
     except SystemExit:
         # get_dns_provider raises typer.Exit if not configured — just warn

@@ -12,6 +12,7 @@ class DNSConfig(BaseModel):
     """DNS provider configuration."""
 
     provider: str = "dnsimple"
+    zone: str = ""  # DNS zone (e.g. "example.com"). Defaults to config.domain
 
 
 class BackupConfig(BaseModel):
@@ -140,6 +141,28 @@ def get_full_domain(config: HostSoloConfig, env_name: str) -> str:
     if env_config.subdomain:
         return f"{env_config.subdomain}.{config.domain}"
     return config.domain
+
+
+def get_dns_zone_and_record(config: HostSoloConfig, env_name: str) -> tuple[str, str]:
+    """Get the DNS zone and record name for an environment.
+
+    Returns:
+        Tuple of (zone, record_name). record_name is "@" for zone apex.
+    """
+    zone = config.dns.zone or config.domain
+    full_domain = get_full_domain(config, env_name)
+
+    if full_domain == zone:
+        return zone, "@"
+
+    # Strip the zone suffix to get the record name
+    if full_domain.endswith(f".{zone}"):
+        record_name = full_domain[: -(len(zone) + 1)]
+        return zone, record_name
+
+    # Zone doesn't match domain — fall back to using domain as zone
+    env_config = config.environments[env_name]
+    return config.domain, env_config.subdomain or "@"
 
 
 def get_data_path(config: HostSoloConfig, env_name: str, app_name: str) -> Path:
