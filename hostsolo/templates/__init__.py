@@ -1,5 +1,6 @@
 """Template rendering for docker-compose files."""
 
+import os
 import re
 from pathlib import Path
 
@@ -78,9 +79,17 @@ def render_traefik_compose(config: HostSoloConfig, local: bool = False) -> str:
     env = get_jinja_env()
     template = env.get_template("traefik/docker-compose.yml.j2")
 
+    # Detect Docker socket path (rootless Docker sets DOCKER_HOST)
+    docker_host = os.environ.get("DOCKER_HOST", "")
+    if docker_host.startswith("unix://"):
+        docker_socket = docker_host[len("unix://"):]
+    else:
+        docker_socket = "/var/run/docker.sock"
+
     return template.render(
         config=config,
         local=local,
+        docker_socket=docker_socket,
     )
 
 
