@@ -60,6 +60,18 @@ def get_app_compose_path(app_name: str, env_name: str) -> Path:
     return project_root / "apps" / env_name / app_name / "docker-compose.yml"
 
 
+def get_compose_project(app_name: str, env_name: str) -> str:
+    """Compose project name, unique per environment + app.
+
+    Without this, every env's compose file lives in a directory named after the
+    app (apps/<env>/<app>), so Docker Compose derives the same project name for
+    all environments. A `deploy up` in one env would then treat the other env's
+    container as an orphan and remove it. Scoping the project name per env keeps
+    environments fully isolated.
+    """
+    return f"hostsolo-{env_name}-{app_name}"
+
+
 def ensure_app_config(app_name: str, env_name: str, tag: str | None = None, local: bool = False) -> Path:
     """Ensure app configuration files exist and return the compose path."""
     from hostsolo.templates import render_app_compose
@@ -200,14 +212,16 @@ def deploy_up(
         capture_output=True,
     )
 
+    project = get_compose_project(app_name, env_name)
+
     # Pull latest image
     if pull:
         console.print("  Pulling latest image...")
-        cmd = ["docker", "compose", "-f", str(compose_path), "pull"]
+        cmd = ["docker", "compose", "-p", project, "-f", str(compose_path), "pull"]
         subprocess.run(cmd, cwd=compose_path.parent, capture_output=True)
 
     # Start the app
-    cmd = ["docker", "compose", "-f", str(compose_path), "up", "-d", "--remove-orphans"]
+    cmd = ["docker", "compose", "-p", project, "-f", str(compose_path), "up", "-d", "--remove-orphans"]
     result = subprocess.run(cmd, cwd=compose_path.parent)
 
     if result.returncode == 0:
@@ -238,7 +252,8 @@ def stop(
 
     console.print(f"[bold]Stopping {app_name} in {env_name}...[/bold]")
 
-    cmd = ["docker", "compose", "-f", str(compose_path), "down"]
+    project = get_compose_project(app_name, env_name)
+    cmd = ["docker", "compose", "-p", project, "-f", str(compose_path), "down"]
     result = subprocess.run(cmd, cwd=compose_path.parent)
 
     if result.returncode == 0:
@@ -264,7 +279,8 @@ def logs(
         console.print(f"[yellow]![/yellow] {app_name} is not deployed in {env_name}")
         raise typer.Exit(1)
 
-    cmd = ["docker", "compose", "-f", str(compose_path), "logs", f"--tail={tail}"]
+    project = get_compose_project(app_name, env_name)
+    cmd = ["docker", "compose", "-p", project, "-f", str(compose_path), "logs", f"--tail={tail}"]
     if follow:
         cmd.append("-f")
 
@@ -287,7 +303,8 @@ def restart(
 
     console.print(f"[bold]Restarting {app_name} in {env_name}...[/bold]")
 
-    cmd = ["docker", "compose", "-f", str(compose_path), "restart"]
+    project = get_compose_project(app_name, env_name)
+    cmd = ["docker", "compose", "-p", project, "-f", str(compose_path), "restart"]
     result = subprocess.run(cmd, cwd=compose_path.parent)
 
     if result.returncode == 0:

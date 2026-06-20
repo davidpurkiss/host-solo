@@ -131,6 +131,26 @@ class TestDeployUp:
         assert "deployed" in result.stdout
         assert "example.com" in result.stdout
 
+    def test_deploy_uses_per_env_project_name(
+        self, project_with_env_files: Path, runner: CliRunner
+    ):
+        """Each env+app gets a unique compose project so envs don't evict each other."""
+        with patch("subprocess.run") as mock_run:
+            mock_run.return_value = MagicMock(returncode=0)
+            result = runner.invoke(app, ["deploy", "up", "directus", "--env", "dev"])
+
+        assert result.exit_code == 0
+        # The `up` invocation must scope the compose project to env+app.
+        up_calls = [
+            call[0][0]
+            for call in mock_run.call_args_list
+            if "up" in call[0][0]
+        ]
+        assert up_calls, "expected a docker compose up call"
+        cmd = up_calls[0]
+        assert "-p" in cmd
+        assert cmd[cmd.index("-p") + 1] == "hostsolo-dev-directus"
+
     def test_deploy_with_tag(
         self, project_with_env_files: Path, runner: CliRunner
     ):
