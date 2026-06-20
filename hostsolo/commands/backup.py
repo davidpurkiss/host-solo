@@ -1,5 +1,8 @@
 """Backup management commands."""
 
+import shutil
+import subprocess
+import sys
 from datetime import datetime
 from pathlib import Path
 
@@ -11,6 +14,13 @@ from hostsolo.config import get_project_root, load_config, load_env_settings
 
 app = typer.Typer()
 console = Console()
+
+schedule_app = typer.Typer(help="Manage the automated backup schedule (systemd user timer)")
+app.add_typer(schedule_app, name="schedule")
+
+# systemd user unit names for the scheduled backup.
+SERVICE_NAME = "hostsolo-backup.service"
+TIMER_NAME = "hostsolo-backup.timer"
 
 
 def get_backup_provider():
@@ -61,22 +71,13 @@ def get_backup_paths(app_name: str, env_name: str) -> list[Path]:
     return paths
 
 
-@app.command()
-def now(
-    app_name: str = typer.Argument(..., help="Name of the app to backup"),
-    env_name: str = typer.Option("prod", "--env", "-e", help="Target environment"),
-) -> None:
-    """Create an immediate backup."""
-    provider = get_backup_provider()
+def _backup_app(provider, app_name: str, env_name: str, timestamp: str) -> int:
+    """Back up a single app's configured paths. Returns the number of paths uploaded."""
     paths = get_backup_paths(app_name, env_name)
 
     if not paths:
         console.print(f"[yellow]![/yellow] No backup paths configured for {app_name}")
-        raise typer.Exit(1)
-
-    timestamp = datetime.utcnow().strftime("%Y-%m-%dT%H-%M-%S")
-    console.print(f"[bold]Creating backup for {app_name} ({env_name})...[/bold]")
-    console.print(f"  Timestamp: {timestamp}")
+        return 0
 
     for path in paths:
         console.print(f"  Backing up: {path}")
@@ -88,6 +89,67 @@ def now(
         except Exception as e:
             console.print(f"[red]✗[/red] Failed to backup {path}: {e}")
             raise typer.Exit(1)
+
+    return len(paths)
+
+
+@app.command()
+def now(
+    app_name: str = typer.Argument(..., help="Name of the app to backup"),
+    env_name: str = typer.Option("prod", "--env", "-e", help="Target environment"),
+) -> None:
+    """Create an immediate backup."""
+    provider = get_backup_provider()
+
+    timestamp = datetime.utcnow().strftime("%Y-%m-%dT%H-%M-%S")
+    console.print(f"[bold]Creating backup for {app_name} ({env_name})...[/bold]")
+    console.print(f"  Timestamp: {timestamp}")
+
+    uploaded = _backup_app(provider, app_name, env_name, timestamp)
+    if uploaded == 0:
+        raise typer.Exit(1)
+
+    console.print(f"[green]✓[/green] Backup complete")
+
+
+@app.command("all")
+def backup_all(
+    env_name: str = typer.Option("prod", "--env", "-e", help="Target environment"),
+) -> None:
+    """Back up every app that has backup paths configured.
+
+    This is the entrypoint used by the scheduled backup timer.
+    """
+    config = load_config()
+    provider = get_backup_provider()
+
+    apps_to_backup = [
+        name for name, app_config in config.apps.items() if app_config.backup_paths
+    ]
+
+    if not apps_to_backup:
+        console.print("[yellow]![/yellow] No apps have backup paths configured")
+        raise typer.Exit(1)
+
+    timestamp = datetime.utcnow().strftime("%Y-%m-%dT%H-%M-%S")
+    console.print(
+        f"[bold]Backing up {len(apps_to_backup)} app(s) for {env_name}...[/bold]"
+    )
+    console.print(f"  Timestamp: {timestamp}")
+
+    failures = 0
+    for app_name in apps_to_backup:
+        console.print(f"[bold]{app_name}[/bold]")
+        try:
+            _backup_app(provider, app_name, env_name, timestamp)
+        except typer.Exit:
+            # _backup_app already printed the error; keep going so one bad app
+            # doesn't block backups for the others.
+            failures += 1
+
+    if failures:
+        console.print(f"[red]✗[/red] {failures} app(s) failed to back up")
+        raise typer.Exit(1)
 
     console.print(f"[green]✓[/green] Backup complete")
 
@@ -200,3 +262,128 @@ def delete(
     except Exception as e:
         console.print(f"[red]✗[/red] Failed to delete backup: {e}")
         raise typer.Exit(1)
+
+
+def _systemd_user_dir() -> Path:
+    """Directory for systemd user units (~/.config/systemd/user)."""
+    return Path.home() / ".config" / "systemd" / "user"
+
+
+def _hostsolo_bin() -> str:
+    """Command used by the systemd service to run hostsolo.
+
+    Prefer the console script that lives next to the running interpreter so the
+    timer always uses *this* install (a bare `which hostsolo` can resolve to a
+    stale system-wide path). Fall back to PATH, then to running the module via
+    the current interpreter.
+    """
+    # Note: do NOT resolve() sys.executable — in a venv it's a symlink to the
+    # system interpreter, and following it would point us outside the venv.
+    candidate = Path(sys.executable).parent / "hostsolo"
+    if candidate.exists():
+        return str(candidate)
+    found = shutil.which("hostsolo")
+    if found:
+        return str(Path(found).resolve())
+    return f"{sys.executable} -m hostsolo.cli"
+
+
+def _run_systemctl(*args: str) -> subprocess.CompletedProcess:
+    """Run `systemctl --user ...`, raising a clear error if systemd is absent."""
+    try:
+        return subprocess.run(
+            ["systemctl", "--user", *args],
+            capture_output=True,
+            text=True,
+        )
+    except FileNotFoundError:
+        console.print("[red]✗[/red] systemctl not found — a systemd-based Linux host is required")
+        raise typer.Exit(1)
+
+
+@schedule_app.command("install")
+def schedule_install(
+    env_name: str = typer.Option("prod", "--env", "-e", help="Environment to back up on schedule"),
+) -> None:
+    """Install (or update) the systemd user timer that runs scheduled backups."""
+    from hostsolo.scheduler import (
+        cron_to_oncalendar,
+        render_service_unit,
+        render_timer_unit,
+    )
+
+    config = load_config()
+    schedule = config.backup.schedule
+
+    try:
+        oncalendar = cron_to_oncalendar(schedule)
+    except ValueError as e:
+        console.print(f"[red]✗[/red] Could not convert backup schedule '{schedule}': {e}")
+        console.print("  Set backup.schedule in hostsolo.yaml to a supported cron expression.")
+        raise typer.Exit(1)
+
+    unit_dir = _systemd_user_dir()
+    unit_dir.mkdir(parents=True, exist_ok=True)
+
+    service_path = unit_dir / SERVICE_NAME
+    timer_path = unit_dir / TIMER_NAME
+
+    service_path.write_text(
+        render_service_unit(_hostsolo_bin(), get_project_root(), env_name)
+    )
+    timer_path.write_text(render_timer_unit(oncalendar, env_name))
+
+    console.print(f"[bold]Installing scheduled backups for {env_name}...[/bold]")
+    console.print(f"  Schedule: {schedule}  →  OnCalendar={oncalendar}")
+
+    reload_result = _run_systemctl("daemon-reload")
+    if reload_result.returncode != 0:
+        console.print(f"[red]✗[/red] systemctl daemon-reload failed: {reload_result.stderr.strip()}")
+        raise typer.Exit(1)
+
+    enable_result = _run_systemctl("enable", "--now", TIMER_NAME)
+    if enable_result.returncode != 0:
+        console.print(f"[red]✗[/red] Failed to enable timer: {enable_result.stderr.strip()}")
+        raise typer.Exit(1)
+
+    console.print(f"[green]✓[/green] Installed {TIMER_NAME}")
+    console.print()
+    console.print("[yellow]Note:[/yellow] Ensure lingering is enabled so the timer runs while "
+                  "you're logged out:")
+    console.print("  loginctl enable-linger $(whoami)")
+
+
+@schedule_app.command("status")
+def schedule_status() -> None:
+    """Show the status and next run time of the scheduled backup timer."""
+    result = _run_systemctl(
+        "list-timers", "--all", TIMER_NAME, "--no-pager"
+    )
+    console.print(result.stdout.strip() or "(no output)")
+
+    show = _run_systemctl(
+        "show", TIMER_NAME, "--property=ActiveState,NextElapseUSecRealtime,LastTriggerUSec"
+    )
+    if show.returncode == 0 and show.stdout.strip():
+        console.print(show.stdout.strip())
+
+
+@schedule_app.command("uninstall")
+def schedule_uninstall() -> None:
+    """Stop and remove the scheduled backup timer."""
+    _run_systemctl("disable", "--now", TIMER_NAME)
+
+    unit_dir = _systemd_user_dir()
+    removed = False
+    for name in (TIMER_NAME, SERVICE_NAME):
+        path = unit_dir / name
+        if path.exists():
+            path.unlink()
+            removed = True
+
+    _run_systemctl("daemon-reload")
+
+    if removed:
+        console.print(f"[green]✓[/green] Removed scheduled backup units")
+    else:
+        console.print("[yellow]![/yellow] No scheduled backup units were installed")

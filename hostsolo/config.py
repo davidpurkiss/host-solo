@@ -4,7 +4,7 @@ from pathlib import Path
 from typing import Any
 
 import yaml
-from pydantic import BaseModel, Field, field_validator
+from pydantic import AliasChoices, BaseModel, Field, field_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
@@ -80,16 +80,30 @@ class HostSoloConfig(BaseModel):
 class EnvironmentSettings(BaseSettings):
     """Environment variables for sensitive configuration."""
 
-    model_config = SettingsConfigDict(env_prefix="HOSTSOLO_", env_file=".env")
+    model_config = SettingsConfigDict(
+        env_prefix="HOSTSOLO_", env_file=".env", populate_by_name=True
+    )
 
     # DNS provider credentials
     dnsimple_token: str | None = None
     dnsimple_account_id: str | None = None
 
-    # Backup provider credentials (S3-compatible)
-    aws_access_key_id: str | None = None
-    aws_secret_access_key: str | None = None
-    aws_region: str = "us-east-1"
+    # Backup provider credentials (S3-compatible).
+    # These use the conventional AWS_* names (no HOSTSOLO_ prefix) so the same
+    # variables boto3/awscli expect work unchanged. AliasChoices bypasses the
+    # model-wide env_prefix; the prefixed form is also accepted as a fallback.
+    aws_access_key_id: str | None = Field(
+        default=None,
+        validation_alias=AliasChoices("AWS_ACCESS_KEY_ID", "HOSTSOLO_AWS_ACCESS_KEY_ID"),
+    )
+    aws_secret_access_key: str | None = Field(
+        default=None,
+        validation_alias=AliasChoices("AWS_SECRET_ACCESS_KEY", "HOSTSOLO_AWS_SECRET_ACCESS_KEY"),
+    )
+    aws_region: str = Field(
+        default="us-east-1",
+        validation_alias=AliasChoices("AWS_REGION", "HOSTSOLO_AWS_REGION"),
+    )
 
     # App secrets (can be extended)
     directus_key: str | None = None
